@@ -39,15 +39,12 @@ export function TarotCardComponent({
     >
       <div className={`card-flip-inner ${isFlipped ? 'flipped' : ''}`}>
         {/* Рубашка карты */}
-        <div className="card-front absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-800 to-purple-900 border border-purple-500/30 flex items-center justify-center glow">
-          <div className="text-center">
-            <div className="text-3xl mb-1">🌙</div>
-            <div className="w-12 h-px bg-purple-400/50 mx-auto mb-1" />
-            <div className="text-[10px] text-purple-300/70 font-light tracking-widest uppercase">
-              Tarot
-            </div>
-            <div className="w-12 h-px bg-purple-400/50 mx-auto mt-1" />
-          </div>
+        <div className="card-front absolute inset-0 rounded-xl overflow-hidden border border-purple-500/30 glow">
+          <img
+            src="/cards/backside.png"
+            alt="Card Back"
+            className="w-full h-full object-cover"
+          />
         </div>
 
         {/* Лицевая сторона — настоящая картинка */}

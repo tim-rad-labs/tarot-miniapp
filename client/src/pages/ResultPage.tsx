@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { SpreadResult, DrawnCard } from '../types';
 import { getCardMeaning, getCardAdvice, getYesNoAnswer } from '../utils/spread';
@@ -15,10 +15,41 @@ export function ResultPage() {
   const { hapticImpact, hapticNotification, backButton } = useTelegram();
   const { addReading } = useHistory();
 
-  const result = (location.state as { result?: SpreadResult })?.result;
-  const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
-  const [allRevealed, setAllRevealed] = useState(false);
+  const locationState = location.state as { result?: SpreadResult, revealed?: boolean, autoReveal?: boolean };
+  const result = locationState?.result;
+  const isPreRevealed = locationState?.revealed || false;
+  const shouldAutoReveal = locationState?.autoReveal || false;
+
+  const [flippedCards, setFlippedCards] = useState<Set<number>>(
+    isPreRevealed && result
+      ? new Set(result.cards.map((_, i) => i))
+      : new Set()
+  );
+  const [allRevealed, setAllRevealed] = useState(isPreRevealed);
   const [saved, setSaved] = useState(false);
+
+  const handleCardFlip = useCallback((index: number) => {
+    hapticImpact('medium');
+    setFlippedCards((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+  }, [hapticImpact]);
+
+  // Автоматическое раскрытие карт, если пришли с этапа раскладки
+  useEffect(() => {
+    if (shouldAutoReveal && result && !isPreRevealed) {
+      const timers: any[] = [];
+      result.cards.forEach((_, i) => {
+        const timer = setTimeout(() => {
+          handleCardFlip(i);
+        }, 1200 + i * 1000);
+        timers.push(timer);
+      });
+      return () => timers.forEach(clearTimeout);
+    }
+  }, [shouldAutoReveal, result, isPreRevealed, handleCardFlip]);
 
   // Esmeralda interpretation state
   const [aiText, setAiText] = useState<string | null>(null);
@@ -112,19 +143,18 @@ export function ResultPage() {
     );
   }
 
-  const handleCardFlip = (index: number) => {
-    hapticImpact('medium');
-    const newFlipped = new Set(flippedCards);
-    newFlipped.add(index);
-    setFlippedCards(newFlipped);
 
-    if (newFlipped.size === result.cards.length) {
-      setTimeout(() => {
+
+  // Следим за тем, когда все карты открыты
+  useEffect(() => {
+    if (result && flippedCards.size === result.cards.length && !allRevealed) {
+      const timer = setTimeout(() => {
         hapticNotification('success');
         setAllRevealed(true);
       }, 800);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [flippedCards.size, result?.cards.length, allRevealed, hapticNotification]);
 
   const isYesNo = result.type === 'yes-no';
 
@@ -143,10 +173,10 @@ export function ResultPage() {
           )}
         </div>
 
-        {/* Подсказка */}
+        {/* Подсказка или статус */}
         {!allRevealed && (
-          <p className="text-center text-white/40 text-xs mb-4 animate-fade-in-up">
-            Нажмите на карту, чтобы открыть
+          <p className="text-center text-white/40 text-xs mb-4 animate-fade-in-up italic">
+            {shouldAutoReveal ? 'Судьба открывается...' : 'Нажмите на карту, чтобы открыть'}
           </p>
         )}
 
@@ -240,7 +270,7 @@ function AiInterpretation({
         <div className="flex items-center gap-3 mb-3">
           <div className="text-lg animate-pulse">✨</div>
           <h3 className="text-sm font-semibold text-purple-300">
-            Эсмералда толкует карты...
+            Марра толкует карты...
           </h3>
         </div>
         <div className="space-y-2">
@@ -256,7 +286,7 @@ function AiInterpretation({
     return (
       <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
         <p className="text-sm text-red-300/80 mb-2">
-          Не удалось получить толкование Эсмералды
+          Не удалось получить толкование Марры
         </p>
         <p className="text-xs text-white/40 mb-3">{error}</p>
         <button
@@ -277,7 +307,7 @@ function AiInterpretation({
       <div className="flex items-center gap-2 mb-3">
         <span className="text-lg">✨</span>
         <h3 className="text-sm font-semibold text-purple-300">
-          Толкование Эсмералды
+          Толкование Марры
         </h3>
       </div>
       <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { ReadingTopic, SpreadResult } from '../types';
 import { spreads, topics } from '../data';
@@ -7,7 +8,7 @@ import { TopicSelector } from '../components/TopicSelector';
 import { StarBackground } from '../components/StarBackground';
 import { useTelegram } from '../hooks/useTelegram';
 
-type Step = 'topic' | 'question' | 'shuffle' | 'done';
+type Step = 'topic' | 'question' | 'shuffle' | 'deal' | 'done';
 
 export function SpreadPage() {
   const { type } = useParams<{ type: string }>();
@@ -19,9 +20,10 @@ export function SpreadPage() {
   const [step, setStep] = useState<Step>('topic');
   const [selectedTopic, setSelectedTopic] = useState<ReadingTopic>('general');
   const [question, setQuestion] = useState('');
-  const [shuffleCount, setShuffleCount] = useState(0);
+  const [isShuffling, setIsShuffling] = useState(false);
+  const [dealtCards, setDealtCards] = useState<number[]>([]);
 
-  // Back button
+  // Back button handling
   useState(() => {
     if (backButton) {
       backButton.show();
@@ -49,25 +51,43 @@ export function SpreadPage() {
     setStep('shuffle');
   }, [question, spread, hapticImpact]);
 
-  const handleShuffle = useCallback(() => {
-    hapticImpact('light');
-    setShuffleCount((c) => c + 1);
+  const handleShuffleStart = useCallback(() => {
+    if (isShuffling) return;
+    setIsShuffling(true);
+    hapticImpact('medium');
 
-    if (shuffleCount >= 2) {
-      // Достаточно перемешано — делаем расклад
+    setTimeout(() => {
+      setIsShuffling(false);
       hapticNotification('success');
 
-      if (!spread) return;
-      const result: SpreadResult = performSpread(
-        spread,
-        question || 'Карта дня',
-        selectedTopic,
-      );
+      setTimeout(() => {
+        setStep('deal');
+        if (spread) {
+          spread.positions.forEach((_, i) => {
+            setTimeout(() => {
+              setDealtCards(prev => [...prev, i]);
+              hapticImpact('light');
+            }, 600 + i * 800);
+          });
+        }
+      }, 400);
+    }, 1500);
+  }, [isShuffling, spread, hapticImpact, hapticNotification]);
 
-      // Переходим на страницу результата, передавая данные через state
-      navigate('/result', { state: { result } });
-    }
-  }, [shuffleCount, spread, question, selectedTopic, hapticImpact, hapticNotification, navigate]);
+  const handleStartReveal = useCallback(() => {
+    if (!spread) return;
+
+    // Генерируем результат и СРАЗУ уходим на страницу результата
+    const finalResult = performSpread(
+      spread,
+      question || 'Карта дня',
+      selectedTopic,
+    );
+
+    hapticImpact('medium');
+    // Передаем флаг autoReveal, чтобы страница результата сама запустила анимацию
+    navigate('/result', { state: { result: finalResult, autoReveal: true } });
+  }, [spread, question, selectedTopic, hapticImpact, navigate]);
 
   if (!spread) {
     return (
@@ -78,113 +98,134 @@ export function SpreadPage() {
   }
 
   return (
-    <div className="min-h-screen relative pb-6">
+    <div className="min-h-screen relative pb-6 overflow-hidden">
       <StarBackground />
 
-      <div className="relative z-10 px-4 pt-8">
-        {/* Название расклада */}
+      <div className="relative z-10 px-4 pt-8 h-full flex flex-col">
         <div className="text-center mb-6">
           <h1 className="text-xl font-bold text-white/90">{spread.name}</h1>
           <p className="text-sm text-white/50 mt-1">{spread.description}</p>
         </div>
 
-        {/* Шаг 1: Выбор темы */}
-        {step === 'topic' && (
-          <div className="animate-fade-in-up">
-            <h2 className="text-base font-medium text-white/70 mb-3 text-center">
-              Выберите тему
-            </h2>
-            <TopicSelector
-              topics={topics}
-              selected={selectedTopic}
-              onChange={handleTopicSelect}
-            />
-          </div>
-        )}
+        <div className="flex-1 flex flex-col items-center justify-center">
+          {step === 'topic' && (
+            <div className="animate-fade-in-up w-full">
+              <h2 className="text-base font-medium text-white/70 mb-3 text-center">Выберите тему</h2>
+              <TopicSelector topics={topics} selected={selectedTopic} onChange={handleTopicSelect} />
+            </div>
+          )}
 
-        {/* Шаг 2: Вопрос */}
-        {step === 'question' && (
-          <div className="animate-fade-in-up">
-            <h2 className="text-base font-medium text-white/70 mb-3 text-center">
-              {spread.type === 'daily'
-                ? 'О чём хотите спросить? (необязательно)'
-                : spread.type === 'yes-no'
-                ? 'Задайте вопрос, на который можно ответить Да или Нет'
-                : 'Сформулируйте свой вопрос'}
-            </h2>
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Например: Стоит ли мне менять работу?"
-              className="w-full p-4 rounded-xl bg-white/5 border border-white/10
-                         text-white/90 placeholder-white/30 text-sm
-                         focus:outline-none focus:border-purple-500/50
-                         resize-none h-24"
-            />
-            <button
-              onClick={handleQuestionSubmit}
-              className="w-full mt-4 p-3 rounded-xl bg-purple-600/80 text-white font-medium
-                         hover:bg-purple-600 active:scale-[0.98] transition-all duration-200"
-            >
-              {spread.type === 'daily' && !question.trim()
-                ? 'Продолжить без вопроса'
-                : 'Продолжить'}
-            </button>
-          </div>
-        )}
-
-        {/* Шаг 3: Перемешивание */}
-        {step === 'shuffle' && (
-          <div className="animate-fade-in-up text-center">
-            <h2 className="text-base font-medium text-white/70 mb-6">
-              Сосредоточьтесь на вопросе и перемешайте карты
-            </h2>
-
-            {/* Анимированная колода */}
-            <div className="flex justify-center mb-8">
+          {step === 'question' && (
+            <div className="animate-fade-in-up w-full px-2">
+              <h2 className="text-base font-medium text-white/70 mb-3 text-center">
+                {spread.type === 'daily' ? 'О чём хотите спросить?' : 'Сформулируйте свой вопрос'}
+              </h2>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Ваш вопрос..."
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 text-white/90 placeholder-white/30 text-sm focus:outline-none focus:border-purple-500/50 h-24 mb-4"
+              />
               <button
-                onClick={handleShuffle}
-                className="relative w-36 h-52 active:scale-95 transition-transform"
+                onClick={handleQuestionSubmit}
+                className="w-full py-4 rounded-xl bg-purple-600/80 text-white font-bold hover:bg-purple-600 active:scale-[0.98] transition-all"
               >
-                {/* Стопка карт */}
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-800 to-purple-900
-                               border border-purple-500/30 glow"
-                    style={{
-                      transform: `rotate(${(i - 2) * 3 + (shuffleCount > 0 ? Math.random() * 6 - 3 : 0)}deg)
-                                  translateX(${i * 2}px)`,
-                      zIndex: i,
-                      transition: 'transform 0.3s ease',
-                    }}
-                  >
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-3xl">🌙</div>
-                        <div className="w-12 h-px bg-purple-400/50 mx-auto my-1" />
-                        <div className="text-[10px] text-purple-300/70 tracking-widest">
-                          TAROT
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                Продолжить
               </button>
             </div>
+          )}
 
-            <p className="text-white/40 text-sm mb-2">
-              Нажмите на колоду для перемешивания
-            </p>
-            <p className="text-white/30 text-xs">
-              {shuffleCount === 0
-                ? 'Перемешайте минимум 3 раза'
-                : shuffleCount < 3
-                ? `Перемешано: ${shuffleCount}/3`
-                : 'Карты готовы! Нажмите ещё раз для расклада'}
-            </p>
-          </div>
-        )}
+          {step === 'shuffle' && (
+            <div className="animate-fade-in-up text-center w-full">
+              <h2 className="text-base font-medium text-white/70 mb-12">
+                {isShuffling ? 'Перемешиваем судьбы...' : 'Нажмите на колоду, чтобы перемешать'}
+              </h2>
+              <div className="relative h-72 flex items-center justify-center mb-12 scale-110">
+                <button
+                  onClick={handleShuffleStart}
+                  disabled={isShuffling}
+                  className={`relative w-36 h-52 transition-transform ${isShuffling ? 'cursor-default' : 'active:scale-95 cursor-pointer'}`}
+                >
+                  <AnimatePresence>
+                    {[...Array(6)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        animate={isShuffling ? {
+                          x: [0, i % 2 === 0 ? -120 : 120, 0],
+                          rotate: [i * 2, i % 2 === 0 ? -20 : 20, i * 2],
+                          scale: [1, 1.05, 1],
+                        } : {
+                          x: i * 0.5,
+                          y: i * -0.5,
+                          rotate: (i - 3) * 1.5,
+                        }}
+                        transition={isShuffling ? { duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: i * 0.1 } : { type: "spring" }}
+                        className="absolute inset-0 rounded-xl overflow-hidden border border-purple-500/30 shadow-2xl shadow-purple-900/40"
+                      >
+                        <img src="/cards/backside.png" className="w-full h-full object-cover" alt="Back" />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 'deal' && (
+            <div className="w-full h-full flex flex-col items-center">
+              <h2 className="text-base font-medium text-white/70 mb-12 text-center">
+                Карты ложатся на стол...
+              </h2>
+
+              <div className="relative flex-1 w-full flex items-center justify-center">
+                <div className="flex gap-4 items-center justify-center flex-wrap max-w-sm px-4">
+                  {spread.positions.map((pos, idx) => {
+                    const isDealt = dealtCards.includes(idx);
+                    return (
+                      <div key={idx} className="relative w-24 h-40">
+                        <div className="absolute inset-0 rounded-lg border border-white/5 bg-white/[0.02]" />
+
+                        <AnimatePresence>
+                          {isDealt && (
+                            <motion.div
+                              className="absolute inset-0 z-20"
+                              initial={{ y: 400, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              transition={{ type: "spring", stiffness: 50, damping: 12 }}
+                            >
+                              <div className="absolute inset-0 rounded-lg overflow-hidden border border-purple-500/30 shadow-2xl">
+                                <img src="/cards/backside.png" className="w-full h-full object-cover" alt="Back" />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <AnimatePresence>
+                          {isDealt && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="absolute -bottom-8 left-0 right-0 text-center">
+                              <span className="text-[10px] text-white/40 uppercase font-medium tracking-widest">{pos.label}</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {dealtCards.length === spread.cardCount && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full px-4 mt-12 pb-8">
+                  <button
+                    onClick={handleStartReveal}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold shadow-lg shadow-purple-900/40 active:scale-[0.97] transition-all"
+                  >
+                    Открыть карты
+                  </button>
+                </motion.div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
