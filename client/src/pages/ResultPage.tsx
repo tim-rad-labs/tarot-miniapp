@@ -20,7 +20,7 @@ export function ResultPage() {
   const [allRevealed, setAllRevealed] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // AI interpretation state
+  // Esmeralda interpretation state
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function ResultPage() {
     }
   }, [allRevealed, result, saved, addReading]);
 
-  // Запрашиваем AI-интерпретацию когда все карты открыты
+  // Запрашиваем толкование Эсмералды когда все карты открыты
   useEffect(() => {
     if (allRevealed && result && !aiText && !aiLoading && !aiError) {
       fetchAiInterpretation(result);
@@ -56,6 +56,7 @@ export function ResultPage() {
   }, [allRevealed, result]);
 
   async function fetchAiInterpretation(spread: SpreadResult) {
+    console.log('📡 Fetching AI interpretation from:', `${API_URL}/api/interpret`);
     setAiLoading(true);
     setAiError(null);
 
@@ -239,7 +240,7 @@ function AiInterpretation({
         <div className="flex items-center gap-3 mb-3">
           <div className="text-lg animate-pulse">✨</div>
           <h3 className="text-sm font-semibold text-purple-300">
-            AI толкует карты...
+            Эсмералда толкует карты...
           </h3>
         </div>
         <div className="space-y-2">
@@ -255,7 +256,7 @@ function AiInterpretation({
     return (
       <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
         <p className="text-sm text-red-300/80 mb-2">
-          Не удалось получить AI-толкование
+          Не удалось получить толкование Эсмералды
         </p>
         <p className="text-xs text-white/40 mb-3">{error}</p>
         <button
@@ -276,7 +277,7 @@ function AiInterpretation({
       <div className="flex items-center gap-2 mb-3">
         <span className="text-lg">✨</span>
         <h3 className="text-sm font-semibold text-purple-300">
-          Толкование от AI
+          Толкование Эсмералды
         </h3>
       </div>
       <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">
@@ -296,8 +297,8 @@ function YesNoResult({ drawnCard }: { drawnCard: DrawnCard }) {
     answer === 'Да'
       ? 'text-green-400'
       : answer === 'Нет'
-      ? 'text-red-400'
-      : 'text-yellow-400';
+        ? 'text-red-400'
+        : 'text-yellow-400';
 
   return (
     <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
