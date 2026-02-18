@@ -164,25 +164,29 @@ bot.command('daily', (ctx) => {
 // ===== Запуск =====
 async function start() {
   // Запускаем Express
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
   });
 
-  // Запускаем бота (polling для разработки)
-  if (process.env.NODE_ENV === 'production') {
-    // В продакшене используем webhook
-    const webhookDomain = process.env.WEBHOOK_DOMAIN;
-    if (webhookDomain) {
-      await bot.telegram.setWebhook(`${webhookDomain}/api/webhook`);
-      app.use('/api/webhook', (req, res) => {
-        bot.handleUpdate(req.body, res);
-      });
-      console.log('🤖 Bot running in webhook mode');
-    }
+  // Настройка Telegram Bot
+  const domain = process.env.RENDER_EXTERNAL_URL || process.env.WEBHOOK_DOMAIN;
+
+  if (domain) {
+    // В продакшене (Render или другой хостинг с доменом) используем webhook
+    const webhookPath = `/api/webhook/${BOT_TOKEN}`;
+    await bot.telegram.setWebhook(`${domain}${webhookPath}`);
+
+    app.post(webhookPath, (req, res) => {
+      bot.handleUpdate(req.body, res);
+    });
+
+    console.log(`🤖 Bot running in webhook mode at: ${domain}${webhookPath}`);
   } else {
-    // В разработке используем long polling
-    bot.launch();
+    // В разработке или если домен не задан — используем long polling
     console.log('🤖 Bot running in polling mode');
+    bot.launch().catch(err => {
+      console.error('Bot launch error:', err);
+    });
   }
 }
 
