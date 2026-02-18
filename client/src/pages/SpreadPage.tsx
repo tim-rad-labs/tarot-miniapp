@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { ReadingTopic, SpreadResult } from '../types';
+import type { ReadingTopic } from '../types';
 import { spreads, topics } from '../data';
 import { performSpread } from '../utils/spread';
 import { TopicSelector } from '../components/TopicSelector';
