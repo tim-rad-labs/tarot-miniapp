@@ -90,15 +90,15 @@ export function useTelegram() {
   const tg = getTg();
 
   useEffect(() => {
-    try {
-      if (tg) {
+    if (tg) {
+      try {
         tg.ready();
         tg.expand();
+      } catch (e) {
+        console.warn('Telegram SDK methods (ready/expand) not supported in this environment:', e);
       }
-    } catch (e) {
-      console.error('Failed to init Telegram WebApp:', e);
     }
-  }, []);
+  }, [tg]);
 
   const hapticImpact = useCallback((style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'medium') => {
     tg?.HapticFeedback?.impactOccurred(style);
@@ -116,7 +116,7 @@ export function useTelegram() {
   const saveToCloud = useCallback((key: string, value: string): Promise<boolean> => {
     return new Promise((resolve) => {
       if (!tg?.CloudStorage) {
-        // Fallback to localStorage in dev
+        // Fallback to localStorage
         try {
           localStorage.setItem(key, value);
           resolve(true);
@@ -125,22 +125,37 @@ export function useTelegram() {
         }
         return;
       }
-      tg.CloudStorage.setItem(key, value, (error, stored) => {
-        resolve(!error && stored);
-      });
+      try {
+        tg.CloudStorage.setItem(key, value, (error, stored) => {
+          resolve(!error && stored);
+        });
+      } catch (e) {
+        console.warn('Telegram CloudStorage setItem error:', e);
+        try {
+          localStorage.setItem(key, value);
+          resolve(true);
+        } catch {
+          resolve(false);
+        }
+      }
     });
   }, [tg]);
 
   const loadFromCloud = useCallback((key: string): Promise<string | null> => {
     return new Promise((resolve) => {
       if (!tg?.CloudStorage) {
-        // Fallback to localStorage in dev
+        // Fallback to localStorage
         resolve(localStorage.getItem(key));
         return;
       }
-      tg.CloudStorage.getItem(key, (error, value) => {
-        resolve(error ? null : value);
-      });
+      try {
+        tg.CloudStorage.getItem(key, (error, value) => {
+          resolve(error ? null : value);
+        });
+      } catch (e) {
+        console.warn('Telegram CloudStorage getItem error:', e);
+        resolve(localStorage.getItem(key));
+      }
     });
   }, [tg]);
 
