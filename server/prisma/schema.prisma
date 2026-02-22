@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id             String    @id @default(uuid())
+  telegramId     String    @unique
+  username       String?
+  firstName      String?
+  isActive       Boolean   @default(true)
+  
+  // Для подписок
+  isPremium      Boolean   @default(false)
+  premiumUntil   DateTime?
+  
+  // Статистика
+  totalSpent     Float     @default(0) // Сумма покупок
+  totalRequests  Int       @default(0) // Количество использований бота
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

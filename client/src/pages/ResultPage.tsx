@@ -12,7 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 export function ResultPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hapticImpact, hapticNotification, backButton } = useTelegram();
+  const { user, hapticImpact, hapticNotification, backButton } = useTelegram();
   const { addReading } = useHistory();
 
   const locationState = location.state as { result?: SpreadResult, revealed?: boolean, autoReveal?: boolean };
@@ -93,6 +93,7 @@ export function ResultPage() {
 
     try {
       const body = {
+        userId: user?.id?.toString(),
         spreadType: spread.type,
         question: spread.question,
         topic: spread.topic,
@@ -270,7 +271,7 @@ function AiInterpretation({
         <div className="flex items-center gap-3 mb-3">
           <div className="text-lg animate-pulse">✨</div>
           <h3 className="text-sm font-semibold text-purple-300">
-            Марра толкует карты...
+            Майя толкует карты...
           </h3>
         </div>
         <div className="space-y-2">
@@ -286,7 +287,7 @@ function AiInterpretation({
     return (
       <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
         <p className="text-sm text-red-300/80 mb-2">
-          Не удалось получить толкование Марры
+          Не удалось получить толкование Майи
         </p>
         <p className="text-xs text-white/40 mb-3">{error}</p>
         <button
@@ -307,7 +308,7 @@ function AiInterpretation({
       <div className="flex items-center gap-2 mb-3">
         <span className="text-lg">✨</span>
         <h3 className="text-sm font-semibold text-purple-300">
-          Толкование Марры
+          Толкование Майи
         </h3>
       </div>
       <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">

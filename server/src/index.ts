@@ -3,6 +3,7 @@ import cors from 'cors';
 import { Telegraf, Markup } from 'telegraf';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
 import { chatCompletion, buildInterpretPrompt, getLLMConfig } from './llm';
 import type { InterpretRequest } from './llm';
 
@@ -17,7 +18,8 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-// ===== Express Server =====
+// ===== Prisma & Express =====
+const prisma = new PrismaClient();
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -107,6 +109,14 @@ app.post('/api/interpret', async (req, res) => {
       return;
     }
 
+    // Если передан userId (например, из Mini App), инкрементим счетчик
+    if (body.userId) {
+      await prisma.user.update({
+        where: { telegramId: body.userId },
+        data: { totalRequests: { increment: 1 } },
+      }).catch((err: unknown) => console.error('Ошибка обновления счетчика запросов:', err));
+    }
+
     const messages = buildInterpretPrompt(body);
     const interpretation = await chatCompletion(messages);
 
@@ -122,12 +132,34 @@ app.post('/api/interpret', async (req, res) => {
 const bot = new Telegraf(BOT_TOKEN);
 
 // Команда /start
-bot.start((ctx) => {
+bot.start(async (ctx) => {
+  const telegramId = ctx.from.id.toString();
   const firstName = ctx.from.first_name || 'Путник';
+  const username = ctx.from.username || null;
+
+  // Сохраняем или обновляем пользователя в базе
+  try {
+    await prisma.user.upsert({
+      where: { telegramId },
+      update: {
+        firstName,
+        username,
+        isActive: true,
+      },
+      create: {
+        telegramId,
+        firstName,
+        username,
+        isActive: true,
+      },
+    });
+  } catch (err) {
+    console.error('Ошибка сохранения пользователя в БД:', err);
+  }
 
   ctx.reply(
     `🔮 Добро пожаловать, ${firstName}!\n\n` +
-    `Я — Марра Семь Дорог. Не обещаю чудес и лёгких ответов, но честно покажу развилки, которые карты хранят в тишине.\n\n` +
+    `Я — Майя Семь Дорог. Не обещаю чудес и лёгких ответов, но честно покажу развилки, которые карты хранят в тишине.\n\n` +
     `✨ Доступные расклады:\n` +
     `• Карта дня — чем дышит сегодняшний день и чего лучше избегать\n` +
     `• Три карты — Прошлое, Настоящее и возможное Будущее твоей ситуации\n` +
@@ -194,5 +226,11 @@ async function start() {
 start().catch(console.error);
 
 // Graceful shutdown
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', async () => {
+  bot.stop('SIGINT');
+  await prisma.$disconnect();
+});
+process.once('SIGTERM', async () => {
+  bot.stop('SIGTERM');
+  await prisma.$disconnect();
+});
